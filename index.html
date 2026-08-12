@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>벽 피하기 게임</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', sans-serif;
+    padding: 16px;
+  }
+  #game-container {
+    width: 360px;
+    max-width: 100%;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  #score-bar {
+    background: #16213e;
+    color: #fff;
+    text-align: center;
+    padding: 12px 0;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: space-around;
+  }
+  #score-bar span { color: #7fd4e8; }
+  #game-board {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    background: #f0f4f8;
+    overflow: hidden;
+    border-bottom: 2px solid #16213e;
+    touch-action: manipulation;
+  }
+  .touch-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 6;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  .touch-zone.active { display: flex; }
+  .touch-zone svg {
+    width: 40px;
+    height: 40px;
+    fill: #1a1a2e;
+    opacity: 0.12;
+  }
+  #touch-zone-left { left: 0; }
+  #touch-zone-right { right: 0; }
+  .lane-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(0,0,0,0.08);
+  }
+  .wall-segment {
+    position: absolute;
+    background: #7fd4e8;
+    border: 2px solid #1a1a2e;
+    border-radius: 4px;
+  }
+  @keyframes wall-flicker {
+    0% { opacity: 1; }
+    20% { opacity: 0.15; }
+    40% { opacity: 1; }
+    60% { opacity: 0.15; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .wall-blink {
+    animation: wall-flicker 0.55s ease-in-out forwards;
+  }
+  .bonus-circle {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffd23f;
+    border: 2px solid #1a1a2e;
+    box-shadow: 0 0 8px rgba(255,210,63,0.8);
+  }
+  .toast {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%) scale(0.7);
+    background: rgba(22,33,62,0.9);
+    color: #ffd23f;
+    padding: 10px 22px;
+    border-radius: 24px;
+    font-size: 20px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    opacity: 0;
+    z-index: 8;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .toast.best-toast { color: #7fd4e8; }
+  .toast.toast-show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #player {
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    transition: left 0.12s ease-out;
+    z-index: 5;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  }
+  #controls {
+    display: flex;
+    height: 140px;
+  }
+  .ctrl-btn {
+    flex: 1;
+    border: none;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    transition: background 0.1s;
+    touch-action: manipulation;
+  }
+  .ctrl-btn:active { background: #e8ecf1; }
+  .ctrl-btn:first-child { border-right: 2px solid #eee; }
+  .ctrl-btn svg { width: 46px; height: 46px; }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(22,33,62,0.94);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    z-index: 10;
+    gap: 10px;
+  }
+  #overlay.hide { display: none; }
+  #overlay h2 { margin: 0; font-size: 26px; }
+  #overlay p { margin: 0; font-size: 15px; opacity: 0.85; }
+  .action-btn {
+    margin-top: 14px;
+    padding: 10px 28px;
+    background: #7fd4e8;
+    border: none;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .action-btn:active { background: #5fc0d8; }
+  .action-btn.secondary-btn {
+    margin-top: 8px;
+    background: transparent;
+    border: 2px solid #7fd4e8;
+    color: #7fd4e8;
+  }
+  .action-btn.secondary-btn:active { background: rgba(127,212,232,0.15); }
+  .action-btn.hide { display: none; }
+  #lane-select {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .lane-btn {
+    padding: 8px 16px;
+    border: 2px solid #7fd4e8;
+    background: transparent;
+    color: #fff;
+    border-radius: 16px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .lane-btn.selected {
+    background: #7fd4e8;
+    color: #1a1a2e;
+  }
+  .lane-best {
+    font-size: 10px;
+    font-weight: normal;
+    opacity: 0.85;
+  }
+  #control-select {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .control-btn {
+    padding: 8px 14px;
+    border: 2px solid #7fd4e8;
+    background: transparent;
+    color: #fff;
+    border-radius: 16px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .control-btn.selected {
+    background: #7fd4e8;
+    color: #1a1a2e;
+  }
+  #controls.hide { display: none; }
+  #menu-extra {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  #menu-extra.hide { display: none; }
+  .link-btn {
+    background: none;
+    border: none;
+    color: #9fb3c8;
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 4px;
+  }
+  .link-btn.danger-link { color: #ff9f9f; }
+  #howto-box {
+    background: rgba(0,0,0,0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    max-width: 280px;
+  }
+  #howto-box.hide { display: none; }
+  #howto-box ul {
+    margin: 0;
+    padding-left: 16px;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #dce6ef;
+  }
+  #board-wrap { position: relative; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="score-bar">
+    <div>LV. <span id="level">1</span></div>
+    <div>SCORE: <span id="score">0</span></div>
+    <div>BEST: <span id="best">0</span></div>
+  </div>
+  <div id="board-wrap">
+    <div id="game-board">
+      <div id="touch-zone-left" class="touch-zone">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6v12z"/></svg>
+      </div>
+      <div id="touch-zone-right" class="touch-zone">
+        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6V6z"/></svg>
+      </div>
+    </div>
+    <div id="overlay">
+      <h2 id="overlay-title">벽 피하기</h2>
+      <p id="overlay-desc">좌우로 이동해서 벽을 피하고<br>노란 원(보너스, +2점)을 모아보세요</p>
+      <div id="lane-select">
+        <button class="lane-btn" data-lanes="3">3줄</button>
+        <button class="lane-btn" data-lanes="4">4줄</button>
+        <button class="lane-btn" data-lanes="5">5줄</button>
+      </div>
+      <div id="control-select">
+        <button class="control-btn" data-control="arrows">화살표 버튼</button>
+        <button class="control-btn" data-control="touch">화면 터치</button>
+      </div>
+      <button class="action-btn" id="action-btn">시작하기</button>
+      <button class="action-btn secondary-btn hide" id="main-btn">메인으로 이동</button>
+      <div id="menu-extra">
+        <button class="link-btn" id="howto-btn">게임 설명 보기</button>
+        <div id="howto-box" class="hide">
+          <ul>
+            <li>좌우 이동으로 내려오는 벽을 피하세요</li>
+            <li>노란 원(보너스)을 먹으면 +2점</li>
+            <li>레벨2부터 열린 칸이 1개로 줄어요</li>
+            <li>레벨3부터 벽이 옆으로 움직이기도 해요</li>
+            <li>레벨7부터 벽이 깜빡이다 사라지기도 해요</li>
+          </ul>
+        </div>
+        <button class="link-btn danger-link" id="reset-btn">전체 데이터 초기화</button>
+      </div>
+    </div>
+  </div>
+  <div id="controls">
+    <button class="ctrl-btn" id="left-btn">
+      <svg viewBox="0 0 24 24" fill="#1a1a2e"><path d="M15 18l-6-6 6-6v12z"/></svg>
+    </button>
+    <button class="ctrl-btn" id="right-btn">
+      <svg viewBox="0 0 24 24" fill="#1a1a2e"><path d="M9 6l6 6-6 6V6z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+let LANES = 3;
+const board = document.getElementById('game-board');
+const player = document.createElement('div');
+player.id = 'player';
+player.innerHTML = `<svg viewBox="0 0 24 24"><path fill="#e63950" stroke="#1a1a2e" stroke-width="1" d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z"/></svg>`;
+board.appendChild(player);
+
+const boardW = 360;
+const BOARD_H_ARROWS = 480; // 화살표 버튼 모드일 때 보드 높이
+const BOARD_H_TOUCH = 620;  // 화면 터치 모드일 때: 화살표 버튼이 차지하던 공간(140px)만큼 보드를 더 채움
+let boardH = BOARD_H_ARROWS;
+let laneW = boardW / LANES;
+let selectedLanes = 3;
+let selectedControl = 'arrows'; // 'arrows' 또는 'touch'
+let laneLineEls = [];
+
+let laneIdx = 1;
+let score = 0;
+let bestScores = { 3: 0, 4: 0, 5: 0 }; // 레인 수(3/4/5)별로 따로 유지되는 베스트 점수
+let prevBest = 0;  // 이번 판 시작 시점의 베스트 (돌파 여부 판단용)
+let bestBroken = false;
+let level = 1;
+let speedMultiplier = 1.0;
+let walls = [];
+let bonuses = [];
+let baseSpeed = 1.6;
+let speed = baseSpeed;
+let spawnTimer = 0;
+let spawnInterval = 110;
+let frame = 0;
+let gameOver = false;
+let started = false;
+let rafId = null;
+
+// 30점부터 레벨업 시작, 이후 50점마다 레벨업. 배속은 1.5x -> 2.0x -> 2.5x ... (레벨당 +0.5x)
+function computeLevel(s) {
+  if (s < 30) return 1;
+  return 2 + Math.floor((s - 30) / 50);
+}
+function computeMultiplier(lv) {
+  if (lv <= 1) return 1.0;
+  return 1.5 + (lv - 2) * 0.5;
+}
+
+function showToast(text, isBest) {
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (isBest ? ' best-toast' : '');
+  toast.textContent = text;
+  board.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('toast-show'));
+  setTimeout(() => {
+    toast.classList.remove('toast-show');
+    setTimeout(() => toast.remove(), 250);
+  }, 1000);
+}
+
+function checkLevelUp() {
+  const newLevel = computeLevel(score);
+  if (newLevel > level) {
+    level = newLevel;
+    speedMultiplier = computeMultiplier(level);
+    document.getElementById('level').textContent = level;
+    showToast(`LEVEL ${level}`, false);
+  }
+}
+
+function checkBestBreak() {
+  if (!bestBroken && prevBest > 0 && score > prevBest) {
+    bestBroken = true;
+    showToast('베스트스코어 돌파!', true);
+  }
+}
+
+function setLanes(n) {
+  LANES = n;
+  laneW = boardW / LANES;
+  laneLineEls.forEach(el => el.remove());
+  laneLineEls = [];
+  for (let i = 1; i < LANES; i++) {
+    const line = document.createElement('div');
+    line.className = 'lane-line';
+    line.style.left = (i * laneW) + 'px';
+    board.appendChild(line);
+    laneLineEls.push(line);
+  }
+}
+
+function updateLaneButtonsBest() {
+  document.querySelectorAll('.lane-btn').forEach(btn => {
+    const n = btn.dataset.lanes;
+    btn.innerHTML = `${n}줄<br><span class="lane-best">BEST ${bestScores[n]}</span>`;
+  });
+}
+
+document.querySelectorAll('.lane-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedLanes = parseInt(btn.dataset.lanes, 10);
+    document.querySelectorAll('.lane-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  });
+});
+document.querySelector('.lane-btn[data-lanes="3"]').classList.add('selected');
+updateLaneButtonsBest();
+
+document.querySelectorAll('.control-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedControl = btn.dataset.control;
+    document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    applyControlMode();
+  });
+});
+document.querySelector('.control-btn[data-control="arrows"]').classList.add('selected');
+
+function applyControlMode() {
+  const controlsEl = document.getElementById('controls');
+  const zoneLeft = document.getElementById('touch-zone-left');
+  const zoneRight = document.getElementById('touch-zone-right');
+  if (selectedControl === 'touch') {
+    controlsEl.classList.add('hide');
+    zoneLeft.classList.add('active');
+    zoneRight.classList.add('active');
+    boardH = BOARD_H_TOUCH;
+  } else {
+    controlsEl.classList.remove('hide');
+    zoneLeft.classList.remove('active');
+    zoneRight.classList.remove('active');
+    boardH = BOARD_H_ARROWS;
+  }
+  board.style.height = boardH + 'px';
+}
+
+function updatePlayerPosition() {
+  const x = laneIdx * laneW + laneW/2 - 17;
+  player.style.left = x + 'px';
+  player.style.top = (boardH - 50) + 'px';
+}
+
+function moveLeft() {
+  if (!started || gameOver) return;
+  const newLane = Math.max(0, laneIdx - 1);
+  if (newLane === laneIdx) return; // 이미 끝이면 불필요한 갱신을 하지 않아 렉 방지
+  laneIdx = newLane;
+  updatePlayerPosition();
+}
+
+function moveRight() {
+  if (!started || gameOver) return;
+  const newLane = Math.min(LANES - 1, laneIdx + 1);
+  if (newLane === laneIdx) return; // 이미 끝이면 불필요한 갱신을 하지 않아 렉 방지
+  laneIdx = newLane;
+  updatePlayerPosition();
+}
+
+function clearBoardEntities() {
+  walls.forEach(w => w.els.forEach(el => el.remove()));
+  bonuses.forEach(b => b.el.remove());
+  walls = [];
+  bonuses = [];
+}
+
+function startGame() {
+  setLanes(selectedLanes);
+  applyControlMode();
+  clearBoardEntities();
+  score = 0;
+  laneIdx = Math.floor(LANES / 2);
+  level = 1;
+  speedMultiplier = 1.0;
+  speed = baseSpeed;
+  prevBest = bestScores[LANES];
+  bestBroken = false;
+  spawnInterval = 150;
+  spawnTimer = 0;
+  frame = 0;
+  gameOver = false;
+  started = true;
+  document.getElementById('score').textContent = score;
+  document.getElementById('level').textContent = level;
+  document.getElementById('best').textContent = bestScores[LANES];
+  document.getElementById('overlay').classList.add('hide');
+  updatePlayerPosition();
+  if (rafId) cancelAnimationFrame(rafId);
+  loop();
+}
+
+function spawnWall(blockCount) {
+  const laneIndices = [];
+  for (let i = 0; i < LANES; i++) laneIndices.push(i);
+  const blockedLanes = [];
+  for (let i = 0; i < blockCount; i++) {
+    const pick = Math.floor(Math.random() * laneIndices.length);
+    blockedLanes.push(laneIndices.splice(pick, 1)[0]);
+  }
+  const wallGroup = { y: -30, passed: false, els: [], blockedLanes, willShift: false, shifted: false, willBlink: false, blinked: false, blinkLane: null };
+
+  blockedLanes.forEach(lane => {
+    const seg = document.createElement('div');
+    seg.className = 'wall-segment';
+    seg.style.width = (laneW - 4) + 'px';
+    seg.style.height = '26px';
+    seg.style.left = (lane * laneW + 2) + 'px';
+    seg.style.top = '-30px';
+    board.appendChild(seg);
+    wallGroup.els.push(seg);
+  });
+
+  // 레벨 3부터: 열린 칸이 1개일 때, 이동 벽 기믹 발동 (레벨3=5%, 이후 레벨마다 +2%)
+  if (level >= 3 && blockCount === LANES - 1) {
+    const shiftChance = 0.05 + (level - 3) * 0.02;
+    if (Math.random() < shiftChance) {
+      wallGroup.willShift = true;
+    }
+  }
+
+  // 레벨 7부터: 벽 하나가 깜빡이다 사라지는 기믹 발동 (레벨7=5%, 이후 레벨마다 +2%), 이동 벽과는 중복되지 않음
+  if (level >= 7 && !wallGroup.willShift && blockedLanes.length > 0) {
+    const blinkChance = 0.05 + (level - 7) * 0.02;
+    if (Math.random() < blinkChance) {
+      wallGroup.willBlink = true;
+      wallGroup.blinkLane = blockedLanes[Math.floor(Math.random() * blockedLanes.length)];
+    }
+  }
+
+  walls.push(wallGroup);
+  return blockedLanes;
+}
+
+function getOpenLanes(blockedLanes) {
+  const open = [];
+  for (let i = 0; i < LANES; i++) if (!blockedLanes.includes(i)) open.push(i);
+  return open;
+}
+
+function spawnBonus(openLanes) {
+  const lane = openLanes[Math.floor(Math.random() * openLanes.length)];
+  const el = document.createElement('div');
+  el.className = 'bonus-circle';
+  el.style.left = (lane * laneW + laneW/2 - 12) + 'px';
+  el.style.top = '-29px';
+  board.appendChild(el);
+  bonuses.push({ y: -29, lane, el, collected: false });
+}
+
+function endGame() {
+  gameOver = true;
+  started = false;
+  cancelAnimationFrame(rafId);
+  if (score > bestScores[LANES]) {
+    bestScores[LANES] = score;
+    document.getElementById('best').textContent = bestScores[LANES];
+    updateLaneButtonsBest();
+  }
+  document.getElementById('overlay-title').textContent = '게임 오버';
+  document.getElementById('overlay-desc').innerHTML = `최종 점수: ${score}<br>베스트: ${bestScores[LANES]}`;
+  document.getElementById('action-btn').textContent = '다시 시작';
+  document.getElementById('main-btn').classList.remove('hide');
+  document.getElementById('menu-extra').classList.add('hide');
+  document.getElementById('howto-box').classList.add('hide');
+  document.getElementById('overlay').classList.remove('hide');
+}
+
+function loop() {
+  if (gameOver) return;
+  frame++;
+
+  speed = baseSpeed * speedMultiplier;
+  spawnInterval = Math.max(90, 150 - Math.floor(frame / 400) * 5);
+
+  spawnTimer++;
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    // 보너스가 나오는 줄은 항상 열린 칸이 2개가 되도록 막아 [공간 / 보너스 / 벽] 구조로 만들고,
+    // 보너스가 없는 줄은 레벨에 따라 막히는 칸 수가 늘어남 (레벨1: 2칸 열림, 레벨2+: 1칸만 열림)
+    const hasBonus = frame > 90 && Math.random() < 0.15;
+    const blockCount = hasBonus ? (LANES - 2) : (level >= 2 ? LANES - 1 : LANES - 2);
+    const blockedLanes = spawnWall(blockCount);
+    if (hasBonus) {
+      spawnBonus(getOpenLanes(blockedLanes));
+    }
+  }
+
+  const playerTop = boardH - 50;
+  const playerBottom = playerTop + 34;
+
+  for (let i = walls.length - 1; i >= 0; i--) {
+    const w = walls[i];
+    w.y += speed;
+    w.els.forEach(el => el.style.top = w.y + 'px');
+
+    // 레벨3+ 이동 벽: 화면 중간쯤 지날 때 5% 확률로 열린 칸 옆의 벽이 자리를 바꿈
+    if (w.willShift && !w.shifted && w.y >= boardH * 0.5) {
+      w.shifted = true;
+      const openLane = getOpenLanes(w.blockedLanes)[0];
+      const candidates = w.blockedLanes.filter(l => Math.abs(l - openLane) === 1);
+      if (candidates.length > 0) {
+        const chosenLane = candidates[Math.floor(Math.random() * candidates.length)];
+        const idx = w.blockedLanes.indexOf(chosenLane);
+        w.blockedLanes[idx] = openLane;
+        w.els[idx].style.left = (openLane * laneW + 2) + 'px';
+      }
+    }
+
+    // 레벨7+ 깜빡이는 벽: 중간 지점을 지날 때 벽 하나가 깜빡이다 사라져서 그 칸이 안전해짐
+    if (w.willBlink && !w.blinked && w.y >= boardH * 0.35) {
+      w.blinked = true;
+      const idx = w.blockedLanes.indexOf(w.blinkLane);
+      if (idx !== -1) {
+        const blinkEl = w.els[idx];
+        blinkEl.classList.add('wall-blink');
+        setTimeout(() => {
+          blinkEl.remove();
+          const idx2 = w.blockedLanes.indexOf(w.blinkLane);
+          if (idx2 !== -1) {
+            w.blockedLanes.splice(idx2, 1);
+            w.els.splice(idx2, 1);
+          }
+        }, 550);
+      }
+    }
+
+    if (!w.passed && w.y + 26 >= playerTop && w.y <= playerBottom) {
+      if (w.blockedLanes.includes(laneIdx)) {
+        endGame();
+        return;
+      }
+    }
+
+    if (!w.passed && w.y > playerBottom) {
+      w.passed = true;
+      score++;
+      document.getElementById('score').textContent = score;
+      checkLevelUp();
+      checkBestBreak();
+    }
+
+    if (w.y > boardH + 40) {
+      w.els.forEach(el => el.remove());
+      walls.splice(i, 1);
+    }
+  }
+
+  for (let i = bonuses.length - 1; i >= 0; i--) {
+    const b = bonuses[i];
+    b.y += speed;
+    b.el.style.top = b.y + 'px';
+
+    if (!b.collected && b.y + 24 >= playerTop && b.y <= playerBottom && b.lane === laneIdx) {
+      b.collected = true;
+      score += 2;
+      document.getElementById('score').textContent = score;
+      checkLevelUp();
+      checkBestBreak();
+      b.el.remove();
+      bonuses.splice(i, 1);
+      continue;
+    }
+
+    if (b.y > boardH + 30) {
+      b.el.remove();
+      bonuses.splice(i, 1);
+    }
+  }
+
+  rafId = requestAnimationFrame(loop);
+}
+
+function goToMain() {
+  document.getElementById('overlay-title').textContent = '벽 피하기';
+  document.getElementById('overlay-desc').innerHTML = '좌우로 이동해서 벽을 피하고<br>노란 원(보너스, +2점)을 모아보세요';
+  document.getElementById('action-btn').textContent = '시작하기';
+  document.getElementById('main-btn').classList.add('hide');
+  document.getElementById('menu-extra').classList.remove('hide');
+}
+
+document.getElementById('howto-btn').addEventListener('click', () => {
+  const box = document.getElementById('howto-box');
+  const showing = !box.classList.contains('hide');
+  box.classList.toggle('hide');
+  document.getElementById('howto-btn').textContent = showing ? '게임 설명 보기' : '게임 설명 닫기';
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  const ok = confirm('베스트 스코어 등 저장된 모든 데이터를 초기화할까요?');
+  if (!ok) return;
+  bestScores = { 3: 0, 4: 0, 5: 0 };
+  updateLaneButtonsBest();
+  document.getElementById('best').textContent = 0;
+});
+
+document.getElementById('left-btn').addEventListener('click', moveLeft);
+document.getElementById('right-btn').addEventListener('click', moveRight);
+document.getElementById('touch-zone-left').addEventListener('click', moveLeft);
+document.getElementById('touch-zone-right').addEventListener('click', moveRight);
+document.getElementById('action-btn').addEventListener('click', startGame);
+document.getElementById('main-btn').addEventListener('click', goToMain);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') moveLeft();
+  if (e.key === 'ArrowRight') moveRight();
+});
+
+for (let i = 1; i < LANES; i++) {
+  const line = document.createElement('div');
+  line.className = 'lane-line';
+  line.style.left = (i * laneW) + 'px';
+  board.appendChild(line);
+  laneLineEls.push(line);
+}
+
+updatePlayerPosition();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
