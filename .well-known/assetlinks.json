@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.mattsunwoo_maker.twa",
+        "sha256_cert_fingerprints": ["90:7C:65:7B:7C:12:B6:B7:6E:2B:A6:90:1D:63:D5:5F:60:BD:AC:84:C4:BB:E5:B0:41:73:07:F2:1E:DE:3E:A8"]
+      }
+    }]
