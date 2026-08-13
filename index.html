@@ -718,6 +718,29 @@ document.getElementById('left-btn').addEventListener('click', moveLeft);
 document.getElementById('right-btn').addEventListener('click', moveRight);
 document.getElementById('touch-zone-left').addEventListener('click', moveLeft);
 document.getElementById('touch-zone-right').addEventListener('click', moveRight);
+
+// 화면 터치 모드일 때, 탭뿐 아니라 좌우로 드래그(스와이프)해도 이동 가능하게 함
+let swipeStartX = null;
+let swipeStartY = null;
+const SWIPE_THRESHOLD = 30; // px
+
+board.addEventListener('touchstart', (e) => {
+  if (selectedControl !== 'touch' || !e.touches.length) return;
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}, { passive: true });
+
+board.addEventListener('touchend', (e) => {
+  if (selectedControl !== 'touch' || swipeStartX === null || !e.changedTouches.length) return;
+  const dx = e.changedTouches[0].clientX - swipeStartX;
+  const dy = e.changedTouches[0].clientY - swipeStartY;
+  swipeStartX = null;
+  swipeStartY = null;
+  if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+    e.preventDefault(); // 스와이프로 처리된 경우, 뒤이어 발생할 탭(click) 이동과 중복되지 않도록 막음
+    if (dx > 0) moveRight(); else moveLeft();
+  }
+}, { passive: false });
 document.getElementById('action-btn').addEventListener('click', startGame);
 document.getElementById('main-btn').addEventListener('click', goToMain);
 
