@@ -608,6 +608,9 @@ function loop() {
 
   const playerTop = boardH - 50;
   const playerBottom = playerTop + 34;
+  const HIT_MARGIN = 7; // 살짝 스치는 정도는 봐주기 위한 충돌 판정 여유값(px)
+  const hitTop = playerTop + HIT_MARGIN;
+  const hitBottom = playerBottom - HIT_MARGIN;
 
   for (let i = walls.length - 1; i >= 0; i--) {
     const w = walls[i];
@@ -645,7 +648,9 @@ function loop() {
       }
     }
 
-    if (!w.passed && w.y + 26 >= playerTop && w.y <= playerBottom) {
+    const wallTop = w.y + HIT_MARGIN;
+    const wallBottom = w.y + 26 - HIT_MARGIN;
+    if (!w.passed && wallBottom >= hitTop && wallTop <= hitBottom) {
       if (w.blockedLanes.includes(laneIdx)) {
         endGame();
         return;
