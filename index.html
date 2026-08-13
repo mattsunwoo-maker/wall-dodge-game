@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>벽 피하기 게임</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a1a2e">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -82,6 +78,8 @@
     background: #7fd4e8;
     border: 2px solid #1a1a2e;
     border-radius: 4px;
+    top: 0;
+    will-change: transform;
   }
   @keyframes wall-flicker {
     0% { opacity: 1; }
@@ -102,6 +100,8 @@
     background: #ffd23f;
     border: 2px solid #1a1a2e;
     box-shadow: 0 0 8px rgba(255,210,63,0.8);
+    top: 0;
+    will-change: transform;
   }
   .toast {
     position: absolute;
@@ -347,7 +347,7 @@ let bestScores = { 3: 0, 4: 0, 5: 0 }; // 레인 수(3/4/5)별로 따로 유지�
 let prevBest = 0;  // 이번 판 시작 시점의 베스트 (돌파 여부 판단용)
 let bestBroken = false;
 let level = 1;
-let speedMultiplier = 1.0;
+let speedMultiplier = 1.5;
 let walls = [];
 let bonuses = [];
 let baseSpeed = 1.6;
@@ -359,14 +359,13 @@ let gameOver = false;
 let started = false;
 let rafId = null;
 
-// 30점부터 레벨업 시작, 이후 50점마다 레벨업. 배속은 1.5x -> 2.0x -> 2.5x ... (레벨당 +0.5x)
+// 30점부터 레벨업 시작, 이후 50점마다 레벨업. 배속은 시작 1.5x -> 2.0x -> 2.5x -> 3.0x ... (레벨당 +0.5x)
 function computeLevel(s) {
   if (s < 30) return 1;
   return 2 + Math.floor((s - 30) / 50);
 }
 function computeMultiplier(lv) {
-  if (lv <= 1) return 1.0;
-  return 1.5 + (lv - 2) * 0.5;
+  return 1.5 + (lv - 1) * 0.5;
 }
 
 function showToast(text, isBest) {
@@ -493,8 +492,8 @@ function startGame() {
   score = 0;
   laneIdx = Math.floor(LANES / 2);
   level = 1;
-  speedMultiplier = 1.0;
-  speed = baseSpeed;
+  speedMultiplier = 1.5;
+  speed = baseSpeed * speedMultiplier;
   prevBest = bestScores[LANES];
   bestBroken = false;
   spawnInterval = 150;
@@ -527,7 +526,7 @@ function spawnWall(blockCount) {
     seg.style.width = (laneW - 4) + 'px';
     seg.style.height = '26px';
     seg.style.left = (lane * laneW + 2) + 'px';
-    seg.style.top = '-30px';
+    seg.style.transform = 'translateY(-30px)';
     board.appendChild(seg);
     wallGroup.els.push(seg);
   });
@@ -564,7 +563,7 @@ function spawnBonus(openLanes) {
   const el = document.createElement('div');
   el.className = 'bonus-circle';
   el.style.left = (lane * laneW + laneW/2 - 12) + 'px';
-  el.style.top = '-29px';
+  el.style.transform = 'translateY(-29px)';
   board.appendChild(el);
   bonuses.push({ y: -29, lane, el, collected: false });
 }
@@ -613,7 +612,7 @@ function loop() {
   for (let i = walls.length - 1; i >= 0; i--) {
     const w = walls[i];
     w.y += speed;
-    w.els.forEach(el => el.style.top = w.y + 'px');
+    w.els.forEach(el => el.style.transform = `translateY(${w.y}px)`);
 
     // 레벨3+ 이동 벽: 화면 중간쯤 지날 때 5% 확률로 열린 칸 옆의 벽이 자리를 바꿈
     if (w.willShift && !w.shifted && w.y >= boardH * 0.5) {
@@ -670,7 +669,7 @@ function loop() {
   for (let i = bonuses.length - 1; i >= 0; i--) {
     const b = bonuses[i];
     b.y += speed;
-    b.el.style.top = b.y + 'px';
+    b.el.style.transform = `translateY(${b.y}px)`;
 
     if (!b.collected && b.y + 24 >= playerTop && b.y <= playerBottom && b.lane === laneIdx) {
       b.collected = true;
@@ -736,12 +735,6 @@ for (let i = 1; i < LANES; i++) {
 }
 
 updatePlayerPosition();
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
-}
 </script>
 </body>
 </html>
