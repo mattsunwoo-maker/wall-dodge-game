@@ -591,7 +591,11 @@ function loop() {
   frame++;
 
   speed = baseSpeed * speedMultiplier;
-  spawnInterval = Math.max(90, 150 - Math.floor(frame / 400) * 5);
+  // 배속이 오를수록 벽 사이 간격이 벌어지는 걸 유지하되, 너무 많이 벌어지지 않도록
+  // 배속 증가분의 일부를 스폰 간격에도 반영해 완만하게 눌러줌
+  const speedExtra = Math.max(0, speedMultiplier - 1.5); // 시작 배속(1.5x) 대비 증가분
+  const gapDampFactor = 1 + speedExtra * 0.35;
+  spawnInterval = Math.max(80, Math.round((150 - Math.floor(frame / 400) * 5) / gapDampFactor));
 
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
